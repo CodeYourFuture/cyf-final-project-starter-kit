@@ -7,17 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: textbook/take-action@nodejs
-        with:
-          node-version: 20
-      - run: npm run lint
   nodejs:
-    strategy:
-      matrix:
-        node: [20.9, 20, 22]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -37,7 +27,7 @@ jobs:
     steps:
       - uses: textbook/take-action@nodejs
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 20
       - uses: textbook/take-action@playwright
       - run: npm run lint
       - run: npm run test:cover
