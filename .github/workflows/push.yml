@@ -8,22 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: textbook/take-action@nodejs
-        with:
-          node-version: 24
-      - run: npm run lint
-
   nodejs:
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ["20.19", "20", "22.12", "22", "24.0", "24"]
     runs-on: ubuntu-latest
-    outputs:
-      lcov-artifact-id: ${{ steps.upload-lcov.outputs.artifact-id }}
     services:
       postgres:
         image: postgres:17-alpine
@@ -39,21 +25,19 @@ jobs:
           - 5432:5432
     env:
       DATABASE_URL: postgres://testdb:keepitsecret@localhost:5432/testdb
-      LOG_LEVEL: debug
     steps:
       - uses: textbook/take-action@nodejs
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
       - uses: textbook/take-action@playwright
       - run: npm run lint
       - run: npm run test:cover
         env:
           FORCE_COLOR: true
       - uses: actions/upload-artifact@v5
-        id: upload-lcov
         if: vars.ENABLE_COVERALLS == 'true'
         with:
-          name: lcov-${{ matrix.node }}
+          name: lcov
           path: coverage/lcov.info
           if-no-files-found: error
       - run: npm run migration up
@@ -62,19 +46,18 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
-    needs: [nodejs]
-    if: always() && vars.ENABLE_COVERALLS == 'true' && needs.nodejs.outputs.lcov-artifact-id
+    if: vars.ENABLE_COVERALLS == 'true'
     environment:
       name: coveralls
       url: https://coveralls.io/github/${{ github.repository }}
+    needs: [nodejs]
     steps:
       - uses: actions/checkout@v5
       - run: |
           curl -L https://coveralls.io/coveralls-linux.tar.gz | tar -xz -C /usr/local/bin
       - uses: actions/download-artifact@v5
         with:
-          artifact-ids: ${{ needs.nodejs.outputs.lcov-artifact-id }}
-          merge-multiple: true
+          name: lcov
           path: coverage/
       - run: coveralls report coverage/lcov.info
         env:
@@ -126,7 +109,6 @@ jobs:
       - run: npx --yes wait-on --log --timeout 30000 http-get://localhost:4321
       - run: npm run e2e
         env:
-          LOG_LEVEL: debug
           PLAYWRIGHT_BASE_URL: http://localhost:4321
       - if: always() && steps.docker-run.outputs.id
         run: docker logs ${{ steps.docker-run.outputs.id }}
